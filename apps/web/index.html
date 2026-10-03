@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0d0d" />
+  <title>Phase — Autonomous DJ</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="noise"></div>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">P</span><span>PHASE</span></a>
+    <div class="set-id"><span class="live-dot"></span> AUTONOMOUS SET <b>#041</b></div>
+    <div class="system-pill"><span>ENGINE</span><strong>ONLINE</strong><i></i></div>
+  </header>
+
+  <main>
+    <section class="hero-grid">
+      <article class="deck current-deck">
+        <div class="eyebrow"><span>01</span> NOW PLAYING</div>
+        <div class="art violet"><div class="orb"></div><div class="ring r1"></div><div class="ring r2"></div><span>A</span></div>
+        <div class="track-copy">
+          <div><h1 id="current-title">Midnight Circuit</h1><p>DEMO SYSTEM · CHROMATIC HOUSE</p></div>
+          <div class="key-bpm"><span><small>KEY</small>8A</span><span><small>BPM</small>122.0</span></div>
+        </div>
+        <div class="waveform" id="wave-a" aria-hidden="true"></div>
+        <div class="transport"><span>02:41</span><div class="progress"><i></i><b></b></div><span>04:18</span></div>
+      </article>
+
+      <aside class="transition-core">
+        <div class="route-line"><i></i><span>A</span><b></b><span>B</span><i></i></div>
+        <div class="countdown"><small>TRANSITION IN</small><strong id="countdown">00:24</strong><span>8 BARS</span></div>
+        <div class="dial" id="energy-dial"><div><small>SET ENERGY</small><strong id="energy-value">7.2</strong><span>/ 10</span></div></div>
+        <div class="mode"><small>TECHNIQUE</small><button class="selector" id="technique-button">BASS SWAP <span>⌄</span></button></div>
+      </aside>
+
+      <article class="deck next-deck">
+        <div class="eyebrow"><span>02</span> UP NEXT <b>94% MATCH</b></div>
+        <div class="art lime"><div class="orb"></div><div class="ring r1"></div><div class="ring r2"></div><span>B</span></div>
+        <div class="track-copy">
+          <div><h1 id="next-title">Afterimage</h1><p>DEMO SYSTEM · MELODIC HOUSE</p></div>
+          <div class="key-bpm"><span><small>KEY</small>8A</span><span><small>BPM</small>124.0</span></div>
+        </div>
+        <div class="waveform" id="wave-b" aria-hidden="true"></div>
+        <div class="compat"><span>HARMONIC <b>EXACT</b></span><span>PHRASE <b>16 BAR</b></span><span>Δ ENERGY <b>+0.8</b></span></div>
+      </article>
+    </section>
+
+    <section class="control-strip">
+      <div class="control-title"><span>LIVE DIRECTION</span><small>Operator override</small></div>
+      <button data-action="energy_down"><i>↘</i><span>LOWER<small>ENERGY</small></span></button>
+      <button class="active" data-action="maintain"><i>→</i><span>HOLD<small>THE LINE</small></span></button>
+      <button data-action="energy_up"><i>↗</i><span>RAISE<small>ENERGY</small></span></button>
+      <button data-action="skip"><i>⇥</i><span>SKIP<small>NEXT TRACK</small></span></button>
+      <button class="danger" data-action="emergency_fade"><i>■</i><span>FADE<small>EMERGENCY</small></span></button>
+    </section>
+
+    <section class="lower-grid">
+      <article class="panel queue-panel">
+        <div class="panel-head"><div><span class="kicker">INTELLIGENT QUEUE</span><h2>What the room hears next</h2></div><button class="text-button" id="request-open">+ ADD REQUEST</button></div>
+        <div class="queue-list" id="queue-list">
+          <div class="queue-row selected"><span class="rank">01</span><div class="mini-art lime"></div><div class="song"><b>Afterimage</b><small>Demo System</small></div><span class="tag">NEXT</span><span class="meta">124 BPM</span><div class="score"><b>94</b><small>MATCH</small></div></div>
+          <div class="queue-row"><span class="rank">02</span><div class="mini-art cyan"></div><div class="song"><b>Glass Horizon</b><small>Demo System</small></div><span class="tag ghost">PEAK</span><span class="meta">125 BPM</span><div class="score"><b>89</b><small>MATCH</small></div></div>
+          <div class="queue-row"><span class="rank">03</span><div class="mini-art amber"></div><div class="song"><b>Soft Focus</b><small>Demo System</small></div><span></span><span class="meta">120 BPM</span><div class="score"><b>83</b><small>MATCH</small></div></div>
+        </div>
+      </article>
+
+      <article class="panel trajectory-panel">
+        <div class="panel-head"><div><span class="kicker">SET INTELLIGENCE</span><h2>Energy trajectory</h2></div><span class="model">HEURISTIC v0.1</span></div>
+        <div class="chart-wrap">
+          <svg viewBox="0 0 620 210" role="img" aria-label="Target and actual energy trajectories">
+            <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c6ff3d" stop-opacity=".28"/><stop offset="1" stop-color="#c6ff3d" stop-opacity="0"/></linearGradient></defs>
+            <g class="grid"><path d="M42 20H606M42 67H606M42 114H606M42 161H606"/><path d="M42 20V177M183 20V177M324 20V177M465 20V177M606 20V177"/></g>
+            <path class="target-line" d="M42 146 C110 143 125 121 183 118 S270 87 324 94 S410 52 465 59 S540 46 606 29"/>
+            <path class="area" d="M42 151 C108 150 135 130 183 127 S262 99 324 105 S410 68 465 74 S536 64 606 48 L606 177 L42 177Z"/>
+            <path class="actual-line" d="M42 151 C108 150 135 130 183 127 S262 99 324 105 S410 68 465 74 S536 64 606 48"/>
+            <circle cx="324" cy="105" r="5"/><line class="now-line" x1="324" y1="20" x2="324" y2="177"/>
+            <g class="axis"><text x="4" y="25">10</text><text x="16" y="72">8</text><text x="16" y="119">6</text><text x="16" y="166">4</text><text x="42" y="202">00:00</text><text x="169" y="202">00:30</text><text x="310" y="202">01:00</text><text x="451" y="202">01:30</text><text x="578" y="202">02:00</text></g>
+          </svg>
+          <div class="legend"><span><i class="actual"></i>ACTUAL</span><span><i class="target"></i>TARGET</span><b>NOW · 01:00</b></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="engine-bar">
+      <div><span class="pulse"></span><b>DECISION ENGINE</b><small>Monitoring 4 candidates</small></div>
+      <div class="engine-stats"><span><small>BEAT ALIGNMENT</small><b>0.0 ms</b></span><span><small>HEADROOM</small><b>−0.5 dB</b></span><span><small>RENDER QUEUE</small><b>Clear</b></span></div>
+      <button id="render-button"><span>RENDER TRANSITION</span><small>Generate real 16-bar WAV</small><i>↗</i></button>
+    </section>
+  </main>
+
+  <dialog id="request-dialog">
+    <form method="dialog" id="request-form">
+      <button class="close" value="cancel" aria-label="Close">×</button>
+      <span class="kicker">LIVE REQUEST</span><h2>Bring a track into consideration.</h2>
+      <p>The planner records the request and weighs it against key, energy, recency, and event constraints.</p>
+      <label>SONG OR ARTIST<input id="request-input" required placeholder="e.g. a 2010s throwback" /></label>
+      <button class="submit" value="default">ADD TO PLANNER</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast"><b>Transition ready</b><span>Clipping-free WAV rendered.</span></div>
+  <script src="/app.js"></script>
+</body>
+</html>
+
