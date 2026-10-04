@@ -1,6 +1,50 @@
-# Phase — Autonomous DJ MVP
+# Phase — Autonomous DJ
 
-Phase is a runnable first-sprint implementation of the attached autonomous AI DJ specification. It deliberately separates creative decisions from deterministic audio execution: the operator console proposes direction, while a reproducible DSP pipeline analyzes PCM WAV files and renders phrase-length transitions.
+Phase is an ML-ready autonomous DJ system designed to learn how to choose and execute musically coherent transitions. It is built around a simple idea: a learned model makes the creative decisions—what should play next, where the transition should happen, and which technique should be used—while a deterministic DSP engine performs the mix safely and reproducibly.
+
+The current MVP provides the complete audio-analysis, transition-planning, rendering, and operator-control foundation. Its decision engine is presently a heuristic baseline; the included licensed house-music dataset and stable `TransitionPlan` contract are the foundation for training and evaluating the learned ranking model described below.
+
+## What it does
+
+Phase takes tracks from analysis to a playable DJ transition:
+
+1. **Analyzes audio** to estimate BPM, beat timestamps, energy, duration, and peak level.
+2. **Represents a DJ decision** as a typed transition plan containing the source and destination tracks, cue points, target BPM, phrase length, and mixing technique.
+3. **Normalizes tempo and aligns phrases** so both tracks meet on a shared beat grid.
+4. **Renders the transition** using equal-power crossfades, low-frequency handoffs, EQ blending, or quick cuts.
+5. **Measures the result** for duration, peak level, clipping, and beat-alignment error.
+6. **Keeps a human in control** through a browser console with energy direction, requests, queue visibility, skip, and emergency fade controls.
+
+```text
+Tracks → audio features → transition candidates → decision model → TransitionPlan
+                                                                      ↓
+Operator intent ───────────────────────────────────────────────→ DSP renderer
+                                                                      ↓
+                                                        WAV + quality metrics
+```
+
+## Machine learning focus
+
+The ML problem is framed as **learning to rank transition candidates**, not generating raw audio. For every possible next track and transition point, the model can score musical compatibility and choose the candidate that best follows the current track, the desired energy trajectory, and operator constraints.
+
+### Current baseline
+
+- Onset-envelope autocorrelation estimates tempo in the 70–180 BPM range.
+- RMS-derived energy and peak measurements describe track intensity and headroom.
+- A heuristic planner represents the initial decision baseline (`heuristic-v0.1`).
+- Every decision is passed to the renderer through the same typed `TransitionPlan` interface that a trained model will use.
+
+### Training path
+
+- **Training data:** `data/training/cc_by_house/` contains a manifest and CC BY 4.0 house tracks that may be used for waveform analysis and model development with attribution.
+- **Candidate features:** tempo distance, beat/downbeat alignment, energy change, key compatibility, phrase/section position, vocal overlap, loudness, recency, and operator intent.
+- **Labels:** accepted/rejected transition pairs, pairwise preferences, render-quality checks, and eventual operator or listener feedback.
+- **Model:** an explainable pairwise ranker (planned: XGBoost) scores candidate transitions and exposes the factors behind each choice.
+- **Evaluation:** ranking quality is combined with deterministic audio checks such as clipping, transition duration, and beat alignment.
+
+This separation makes experimentation safer: the learned ranker can be retrained or replaced without changing the audio engine, and model output must satisfy a validated transition contract before any audio is rendered.
+
+> **Model status:** this repository does not yet contain trained model weights or a training command. The working MVP uses signal processing and a heuristic decision baseline; supervised ranker training is the next ML phase.
 
 ## What works now
 
@@ -13,7 +57,20 @@ Phase is a runnable first-sprint implementation of the attached autonomous AI DJ
 - Synthetic, rights-safe demo tracks and an end-to-end render button.
 - Automated checks for output duration, clipping, sample rate, channel count, and BPM sanity.
 
-The included implementation is a production-shaped research harness, not a claim of venue-ready source separation or pitch-preserving time stretch. Its extension points are intentionally clear: replace interpolation with Rubber Band, add Essentia/librosa analysis, run Demucs offline, and place learned rankers above the same transition contract.
+The included implementation is a production-shaped research harness, not a claim of venue-ready source separation or pitch-preserving time stretch. Its extension points are intentionally clear: replace interpolation with Rubber Band, add Essentia/librosa analysis, run Demucs offline, and place the learned ranker above the existing transition contract.
+
+## Tech stack
+
+| Layer | Technology | Role |
+| --- | --- | --- |
+| Audio + ML foundation | Python 3.10+, NumPy | Waveform processing, feature extraction, tempo analysis, mixing, and model-ready feature pipelines |
+| Audio I/O | Python `wave`, PCM WAV at 44.1 kHz | Dependency-light decoding and reproducible output |
+| Decision contracts | Python dataclasses | Typed track analysis, transition plans, render metrics, and operator state |
+| API + runtime | Python `http.server` | Local control API, telemetry, static app hosting, and render endpoints |
+| Operator UI | HTML, CSS, vanilla JavaScript | Real-time queue, energy controls, transition selection, and playback |
+| Training data | CC BY audio + CSV manifests | Licensed waveform corpus and traceable metadata for ML experiments |
+| Testing | Python `unittest` | BPM sanity, timing, format, headroom, and clipping checks |
+| Planned ML/audio upgrades | XGBoost, Essentia/librosa, Demucs, Rubber Band, PostgreSQL/pgvector | Learned ranking, richer features, source separation, high-quality time stretch, and feedback storage |
 
 ## Run it
 
@@ -58,11 +115,13 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ## Architecture
 
 ```text
-Operator console → decision/control API → TransitionPlan
-                                           ↓
+Licensed audio → feature extraction → candidate/label dataset → ranker training
+                                                               ↓
+Operator console → decision/control API → heuristic or trained ranker → TransitionPlan
+                                                                        ↓
 PCM WAV → analysis → tempo normalization → bass/EQ envelopes → headroom → WAV
-                              ↓
-                        render metrics + telemetry
+                              ↓                                         ↓
+                    model features                         metrics + telemetry
 ```
 
 Key locations:
@@ -71,6 +130,9 @@ Key locations:
 - `src/autonomous_dj/audio.py` — ingestion, analysis, time scaling, EQ split, rendering
 - `src/autonomous_dj/models.py` — track, transition, metrics, and operator contracts
 - `src/autonomous_dj/server.py` — API, static app, demo catalog, telemetry
+- `scripts/build_cc_house_dataset.py` — licensed training-corpus builder and manifest generator
+- `data/training/cc_by_house/` — attributed CC BY house-audio training material
+- `data/playlists/` — evaluation metadata kept separate from licensed waveform data
 - `tests/` — measurable first-sprint exit criteria
 - `data/catalog/` and `data/renders/` — generated demo inputs and outputs
 
@@ -81,4 +143,3 @@ Key locations:
 3. Add offline Demucs stems and higher-quality Rubber Band tempo adjustment.
 4. Persist tracks, set runs, requests, transitions, and feedback in PostgreSQL/pgvector.
 5. Promote the heuristic queue to a contextual set planner with explicit event constraints and a target energy curve.
-
