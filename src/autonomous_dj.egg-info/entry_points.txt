@@ -1,0 +1,2 @@
+[console_scripts]
+autonomous-dj = autonomous_dj.cli:main
