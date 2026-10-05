@@ -7,11 +7,15 @@ from pathlib import Path
 
 import numpy as np
 
-from autonomous_dj.audio import STANDARD_SAMPLE_RATE, analyze_track, render_transition, synthesize_demo
+from autonomous_dj.audio import STANDARD_SAMPLE_RATE, analyze_track, render_transition, synthesize_demo, waveform_peaks
 from autonomous_dj.models import TransitionPlan
 
 
 class AudioEngineTests(unittest.TestCase):
+    def test_waveform_peaks_are_normalized_for_the_frontend(self) -> None:
+        peaks = waveform_peaks(np.array([0.0, -0.5, 1.0, -0.25], dtype=np.float32), bins=2)
+        self.assertEqual(peaks, [0.5, 1.0])
+
     def test_demo_analysis_finds_dance_tempo(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             path = synthesize_demo(Path(folder) / "track.wav", 120.0, 110.0, seconds=12)
@@ -40,4 +44,3 @@ class AudioEngineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

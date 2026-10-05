@@ -9,7 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .audio import analyze_track, render_transition, synthesize_demo
+from .audio import analyze_track, read_wav, render_transition, synthesize_demo, waveform_peaks
 from .feedback import append_feedback
 from .ml import MusicFeatures, TransitionRanker
 from .models import OperatorState, TransitionPlan
@@ -21,10 +21,10 @@ state = OperatorState()
 ranker = TransitionRanker.load(DATA_ROOT / "models" / "transition_ranker")
 
 TRACKS = [
-    {"id": "midnight-circuit", "title": "Midnight Circuit", "artist": "Demo System", "bpm": 122.0, "key": "8A", "energy": 6.8, "duration": "04:18", "color": "violet"},
-    {"id": "afterimage", "title": "Afterimage", "artist": "Demo System", "bpm": 124.0, "key": "8A", "energy": 7.6, "duration": "03:52", "color": "lime"},
-    {"id": "glass-horizon", "title": "Glass Horizon", "artist": "Demo System", "bpm": 125.0, "key": "9A", "energy": 8.1, "duration": "04:04", "color": "cyan"},
-    {"id": "soft-focus", "title": "Soft Focus", "artist": "Demo System", "bpm": 120.0, "key": "7A", "energy": 5.9, "duration": "03:46", "color": "amber"},
+    {"id": "midnight-circuit", "title": "Midnight Circuit", "artist": "Demo System", "bpm": 122.0, "key": "8A", "energy": 6.8, "duration": "00:42", "color": "violet", "root_hz": 110.0},
+    {"id": "afterimage", "title": "Afterimage", "artist": "Demo System", "bpm": 124.0, "key": "8A", "energy": 7.6, "duration": "00:42", "color": "lime", "root_hz": 130.81},
+    {"id": "glass-horizon", "title": "Glass Horizon", "artist": "Demo System", "bpm": 125.0, "key": "9A", "energy": 8.1, "duration": "00:42", "color": "cyan", "root_hz": 146.83},
+    {"id": "soft-focus", "title": "Soft Focus", "artist": "Demo System", "bpm": 120.0, "key": "7A", "energy": 5.9, "duration": "00:42", "color": "amber", "root_hz": 98.0},
 ]
 
 
@@ -63,15 +63,63 @@ def _track_by_id(track_id: str) -> dict:
         raise ValueError(f"Unknown track id: {track_id}") from exc
 
 
-def ensure_demo_audio() -> tuple[Path, Path]:
+def ensure_demo_catalog() -> dict[str, Path]:
     catalog = DATA_ROOT / "catalog"
-    source = catalog / "midnight-circuit.wav"
-    destination = catalog / "afterimage.wav"
-    if not source.exists():
-        synthesize_demo(source, 122.0, 110.0)
-    if not destination.exists():
-        synthesize_demo(destination, 124.0, 130.81)
-    return source, destination
+    paths: dict[str, Path] = {}
+    for track in TRACKS:
+        path = catalog / f"{track['id']}.wav"
+        if not path.exists():
+            synthesize_demo(path, float(track["bpm"]), float(track["root_hz"]))
+        paths[str(track["id"])] = path
+    return paths
+
+
+def ensure_demo_audio() -> tuple[Path, Path]:
+    """Backward-compatible default pair used by the original demo endpoint."""
+    catalog = ensure_demo_catalog()
+    return catalog["midnight-circuit"], catalog["afterimage"]
+
+
+def render_selected_mix(source_id: str, destination_id: str, technique: str, bars: int) -> dict:
+    if source_id == destination_id:
+        raise ValueError("Choose two different songs to create a mix")
+    if technique not in {"bass_swap", "eq_blend", "quick_cut"}:
+        raise ValueError("Unknown transition technique")
+    if bars not in {4, 8, 16}:
+        raise ValueError("Transition length must be 4, 8, or 16 bars")
+    source_track = _track_by_id(source_id)
+    destination_track = _track_by_id(destination_id)
+    catalog = ensure_demo_catalog()
+    target_bpm = round((float(source_track["bpm"]) + float(destination_track["bpm"])) / 2.0, 2)
+    plan = TransitionPlan(
+        source_track_id=source_id,
+        destination_track_id=destination_id,
+        source_start_time=4.0,
+        destination_start_time=0.0,
+        transition_bars=bars,
+        target_bpm=target_bpm,
+        technique=technique,
+    )
+    filename = f"{source_id}-to-{destination_id}.wav"
+    output = DATA_ROOT / "renders" / filename
+    metrics = render_transition(
+        catalog[source_id],
+        catalog[destination_id],
+        output,
+        plan,
+        float(source_track["bpm"]),
+        float(destination_track["bpm"]),
+    )
+    mixed, _ = read_wav(output)
+    return {
+        "ok": True,
+        "url": f"/renders/{filename}",
+        "source": source_track,
+        "destination": destination_track,
+        "plan": plan.to_dict(),
+        "metrics": metrics.to_dict(),
+        "waveform": waveform_peaks(mixed),
+    }
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -210,12 +258,30 @@ class Handler(SimpleHTTPRequestHandler):
                     "analysis": [source_analysis.to_dict(), destination_analysis.to_dict()],
                 })
                 return
+            if path == "/api/mix":
+                result = render_selected_mix(
+                    str(body["source_id"]),
+                    str(body["destination_id"]),
+                    str(body.get("technique", "bass_swap")),
+                    int(body.get("bars", 8)),
+                )
+                state.current_track = result["source"]["title"]
+                state.next_track = result["destination"]["title"]
+                state.telemetry.append({
+                    "at": int(time.time()),
+                    "type": "custom_mix",
+                    "source_id": result["source"]["id"],
+                    "destination_id": result["destination"]["id"],
+                })
+                self._json(result)
+                return
             self._json({"error": "Unknown endpoint"}, 404)
         except (ValueError, KeyError, json.JSONDecodeError) as exc:
             self._json({"error": str(exc)}, 400)
 
 
 def run(host: str = "127.0.0.1", port: int = 8000) -> None:
-    ensure_demo_audio()
+    ensure_demo_catalog()
+    server = ThreadingHTTPServer((host, port), Handler)
     print(f"Autonomous DJ operator console: http://{host}:{port}")
-    ThreadingHTTPServer((host, port), Handler).serve_forever()
+    server.serve_forever()

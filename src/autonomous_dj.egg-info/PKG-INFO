@@ -7,6 +7,7 @@ Description-Content-Type: text/markdown
 Requires-Dist: numpy>=1.24
 Provides-Extra: ml
 Requires-Dist: librosa>=0.10.2; extra == "ml"
+Requires-Dist: pandas>=2.2; extra == "ml"
 Requires-Dist: scikit-learn>=1.4; extra == "ml"
 Requires-Dist: xgboost>=2.0; extra == "ml"
 
@@ -47,9 +48,12 @@ pip install -e .
 autonomous-dj serve
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The queue uses a documented
-musical-compatibility baseline until a trained model is present, then loads the
-learned ranker automatically.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Choose any two demo songs,
+assign them to Deck A and Deck B, select a transition style and length, and click
+**Generate my mix**. The studio renders a real WAV and displays its waveform,
+playhead, crossfader, deck gains, tempo, duration, and peak level during playback.
+The recommendation engine uses a documented musical-compatibility baseline until
+a trained model is present, then loads the learned ranker automatically.
 
 ## ML phase
 
@@ -75,6 +79,8 @@ Install the ML dependencies:
 ```bash
 pip install -e '.[ml]'
 ```
+
+On macOS, XGBoost also needs the OpenMP runtime: `brew install libomp`.
 
 Extract features from the included CC BY house dataset:
 

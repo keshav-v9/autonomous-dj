@@ -35,9 +35,12 @@ pip install -e .
 autonomous-dj serve
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The queue uses a documented
-musical-compatibility baseline until a trained model is present, then loads the
-learned ranker automatically.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Choose any two demo songs,
+assign them to Deck A and Deck B, select a transition style and length, and click
+**Generate my mix**. The studio renders a real WAV and displays its waveform,
+playhead, crossfader, deck gains, tempo, duration, and peak level during playback.
+The recommendation engine uses a documented musical-compatibility baseline until
+a trained model is present, then loads the learned ranker automatically.
 
 ## ML phase
 

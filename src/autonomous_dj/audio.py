@@ -59,6 +59,25 @@ def write_wav(path: str | Path, samples: np.ndarray, sample_rate: int = STANDARD
     return output
 
 
+def waveform_peaks(samples: np.ndarray, bins: int = 160) -> list[float]:
+    """Return normalized peak buckets suitable for a lightweight UI waveform."""
+    if bins <= 0:
+        raise ValueError("bins must be greater than zero")
+    if not len(samples):
+        return [0.0] * bins
+    boundaries = np.linspace(0, len(samples), bins + 1, dtype=int)
+    peaks = np.asarray([
+        float(np.max(np.abs(samples[boundaries[index] : boundaries[index + 1]])))
+        if boundaries[index + 1] > boundaries[index]
+        else 0.0
+        for index in range(bins)
+    ])
+    maximum = float(np.max(peaks))
+    if maximum > 0:
+        peaks /= maximum
+    return [round(float(value), 4) for value in peaks]
+
+
 def _onset_envelope(samples: np.ndarray, frame: int = 1024, hop: int = 512) -> np.ndarray:
     if len(samples) < frame:
         return np.array([0.0], dtype=np.float32)
@@ -201,4 +220,3 @@ def synthesize_demo(path: str | Path, bpm: float, root_hz: float, seconds: float
         kick[start : start + length] += 0.72 * np.sin(2 * np.pi * (74 - 34 * local) * local) * np.exp(-local * 28)
     texture = 0.025 * np.sin(2 * np.pi * 4 * root_hz * t) * (0.5 + 0.5 * np.sin(2 * np.pi * t / (beat * 8)))
     return write_wav(path, np.tanh(tone + kick + texture).astype(np.float32), sample_rate)
-

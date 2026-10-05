@@ -18,3 +18,4 @@ src/autonomous_dj.egg-info/top_level.txt
 tests/test_audio.py
 tests/test_ml.py
 tests/test_models.py
+tests/test_server.py

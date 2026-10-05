@@ -1,0 +1,82 @@
+name: Train ranker on 1,000 FMA tracks
+
+on:
+  workflow_dispatch:
+    inputs:
+      track_count:
+        description: Number of FMA tracks to include
+        required: true
+        default: "1000"
+      genre:
+        description: FMA top-level genre
+        required: true
+        default: Electronic
+      candidates_per_context:
+        description: Candidate transitions sampled for each source track
+        required: true
+        default: "24"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out Phase
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ML dependencies
+        run: pip install -e '.[ml]'
+
+      - name: Download official FMA metadata and precomputed features
+        run: |
+          curl -L --fail --retry 3 https://os.unil.cloud.switch.ch/fma/fma_metadata.zip -o /tmp/fma_metadata.zip
+          echo "f0df49ffe5f2a6008d7dc83c6915b31835dfe733  /tmp/fma_metadata.zip" | sha1sum -c -
+          unzip -q /tmp/fma_metadata.zip -d /tmp/fma
+
+      - name: Build 1,000-track catalog and weak preference set
+        run: |
+          python scripts/build_fma_cloud_dataset.py \
+            /tmp/fma/fma_metadata \
+            cloud-output \
+            --limit '${{ inputs.track_count }}' \
+            --genre '${{ inputs.genre }}' \
+            --candidates-per-context '${{ inputs.candidates_per_context }}'
+
+      - name: Train leakage-safe pairwise ranker
+        run: |
+          autonomous-dj ml-train \
+            cloud-output/weak_transition_labels.csv \
+            cloud-output/model
+
+      - name: Record cloud-training provenance
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("cloud-output/model/metadata.json")
+          metadata = json.loads(path.read_text())
+          metadata["catalog_tracks"] = int("${{ inputs.track_count }}")
+          metadata["catalog_genre"] = "${{ inputs.genre }}"
+          metadata["label_source"] = "Phase heuristic weak supervision"
+          metadata["audio_downloaded"] = False
+          metadata["dataset"] = "Free Music Archive"
+          metadata["dataset_url"] = "https://github.com/mdeff/fma"
+          path.write_text(json.dumps(metadata, indent=2) + "\n")
+          PY
+
+      - name: Upload catalog and trained model
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-fma-${{ inputs.track_count }}-${{ github.run_number }}
+          path: cloud-output/
+          retention-days: 30
+          if-no-files-found: error
