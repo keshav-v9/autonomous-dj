@@ -27,6 +27,22 @@ function toast(title, message) {
   setTimeout(() => node.classList.remove('show'), 3600);
 }
 
+function renderQueue(queue = []) {
+  const node = $('#queue-list');
+  if (!queue.length) {
+    node.textContent = 'No eligible tracks remain in the queue.';
+    return;
+  }
+  node.replaceChildren(...queue.slice(0, 3).map((track, index) => {
+    const row = document.createElement('div');
+    row.className = `queue-row${index === 0 ? ' selected' : ''}`;
+    const reason = track.explanation?.[0]?.feature?.replaceAll('_', ' ') || 'compatibility';
+    const displayScore = Math.max(0, Math.min(99, Math.round(82 + 6 * track.score)));
+    row.innerHTML = `<span class="rank">${String(index + 1).padStart(2, '0')}</span><div class="mini-art ${track.color}"></div><div class="song"><b>${track.title}</b><small>${track.artist} · ${reason}</small></div><span class="tag${index ? ' ghost' : ''}">${index ? 'ML' : 'NEXT'}</span><span class="meta">${track.bpm} BPM</span><div class="score"><b>${displayScore}</b><small>MATCH</small></div>`;
+    return row;
+  }));
+}
+
 async function post(url, body = {}) {
   const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
   const result = await response.json();
@@ -42,10 +58,11 @@ $$('.control-strip button[data-action]').forEach((button) => {
       const result = await post('/api/control', {action: button.dataset.action});
       $('#energy-value').textContent = result.state.energy_target.toFixed(1);
       $('#energy-dial').style.background = `conic-gradient(var(--lime) 0 ${result.state.energy_target * 36}deg,#242927 ${result.state.energy_target * 36}deg 360deg)`;
+      $('#next-title').textContent = result.state.next_track;
       if (button.dataset.action === 'skip') {
         $('#current-title').textContent = result.state.current_track;
-        $('#next-title').textContent = result.state.next_track;
       }
+      renderQueue(result.ranked_queue);
       toast('Direction registered', button.querySelector('span').innerText.replace('\n', ' · '));
     } catch (error) { toast('Engine unavailable', error.message); }
   });
@@ -90,7 +107,9 @@ $('#render-button').addEventListener('click', async () => {
   } finally { button.classList.remove('loading'); }
 });
 
-fetch('/api/status').then((response) => response.json()).then(({state}) => {
+fetch('/api/status').then((response) => response.json()).then(({state, ranked_queue, engine}) => {
   $('#energy-value').textContent = state.energy_target.toFixed(1);
+  $('#next-title').textContent = state.next_track;
+  renderQueue(ranked_queue);
+  $('.model').textContent = engine.model.toUpperCase();
 }).catch(() => toast('Offline preview', 'Start the Python server to enable the audio engine.'));
-

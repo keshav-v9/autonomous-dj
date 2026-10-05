@@ -5,36 +5,40 @@ Summary: A deterministic audio foundation and operator console for an autonomous
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 Requires-Dist: numpy>=1.24
+Provides-Extra: ml
+Requires-Dist: librosa>=0.10.2; extra == "ml"
+Requires-Dist: scikit-learn>=1.4; extra == "ml"
+Requires-Dist: xgboost>=2.0; extra == "ml"
 
-# Phase — Autonomous DJ MVP
+# Phase — Autonomous DJ
 
-Phase is a runnable first-sprint implementation of the attached autonomous AI DJ specification. It deliberately separates creative decisions from deterministic audio execution: the operator console proposes direction, while a reproducible DSP pipeline analyzes PCM WAV files and renders phrase-length transitions.
+## What the project does
 
-## What works now
+Phase is an ML-powered autonomous DJ system that analyzes songs, selects the best track to play next, and creates smooth, beat-aligned transitions. It extracts musical features—including BPM, beat timestamps, musical key, phrase structure, energy, loudness, and vocal activity—and uses them to understand how tracks fit together.
 
-- Browser-based venue/operator console with energy direction, skip, emergency fade, requests, intelligent queue, set trajectory, and engine telemetry.
-- Dependency-light WAV ingestion, mono conversion, and resampling to 44.1 kHz.
-- BPM and beat timestamp estimation from an onset envelope.
-- Manual transition points expressed through a typed `TransitionPlan`.
-- Tempo normalization, downbeat-aligned duration, equal-power crossfade, low-frequency handoff, peak management, and WAV export.
-- Three deterministic techniques: bass swap, EQ blend, and quick cut.
-- Synthetic, rights-safe demo tracks and an end-to-end render button.
-- Automated checks for output duration, clipping, sample rate, channel count, and BPM sanity.
+Its trained ranking model scores possible tracks and transition points using musical compatibility, energy progression, crowd feedback, and operator intent. The highest-ranked decision is converted into a transition plan and executed by a deterministic audio engine using bass swaps, EQ blends, or quick cuts.
 
-The included implementation is a production-shaped research harness, not a claim of venue-ready source separation or pitch-preserving time stretch. Its extension points are intentionally clear: replace interpolation with Rubber Band, add Essentia/librosa analysis, run Demucs offline, and place learned rankers above the same transition contract.
+Phase continuously improves from accepted and rejected transitions, pairwise DJ preferences, and performance feedback. A browser-based operator console keeps a human in control of set energy, requests, the upcoming queue, skips, emergency fades, and rendered-transition playback.
 
-## Run it
+## Tech stack
 
-Python 3.10+ and NumPy are the only runtime requirements.
+| Technology | Use |
+| --- | --- |
+| Python 3.10+ | Audio analysis, transition planning, API, and application logic |
+| NumPy | Waveform processing, feature extraction, tempo normalization, and audio mixing |
+| XGBoost | Trained pairwise ranking model for track and transition selection |
+| librosa | BPM, beat, key, energy, loudness, and musical-structure analysis |
+| scikit-learn | Feature preprocessing, dataset splitting, training, and model evaluation |
+| Python `wave` | Reading and writing 44.1 kHz PCM WAV files |
+| Python `http.server` | Local API and web application server |
+| Python dataclasses | Typed track, transition, metrics, and operator-state models |
+| HTML, CSS, and JavaScript | Browser-based DJ operator console and audio playback |
+| CSV and CC BY audio data | Licensed training audio, metadata, transition candidates, and labels |
+| Python `unittest` | Automated audio-engine and transition validation |
 
-```bash
-cd /Users/keshavvarma/Downloads/autonomous-dj
-PYTHONPATH=src python3 -m autonomous_dj serve
-```
+## Run the app
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000), then select a transition technique and click **Render transition**. The app generates two demo tracks, renders a real WAV, and starts playback in the browser.
-
-To use a virtual environment instead:
+The deterministic demo only needs NumPy:
 
 ```bash
 python3 -m venv .venv
@@ -43,50 +47,93 @@ pip install -e .
 autonomous-dj serve
 ```
 
-## Analyze and render your own WAV files
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The queue uses a documented
+musical-compatibility baseline until a trained model is present, then loads the
+learned ranker automatically.
 
-The built-in decoder accepts uncompressed PCM WAV (8/16/24/32-bit). Convert MP3/AAC/FLAC to WAV before ingestion in this dependency-light MVP.
+## ML phase
+
+The ML pipeline is implemented as reproducible CLI stages rather than a
+notebook. It includes:
+
+- librosa extraction for tempo, key/Camelot code, RMS energy, loudness,
+  vocal-band activity, spectral centroid, and phrase confidence;
+- transition features for tempo/key compatibility, energy intent, loudness,
+  vocal overlap, timbral distance, and phrase quality;
+- a CSV labeling workflow supporting rejected (`0`), acceptable (`1`), and
+  preferred (`2`) candidates;
+- an XGBoost `rank:pairwise` model with source-context group splitting, so the
+  same decision context cannot leak into train and test sets;
+- NDCG@5 and pairwise-accuracy evaluation, persisted metadata, feature
+  importance, and per-decision feature contributions;
+- live accepted/rejected and winner/loser feedback at `POST /api/feedback`;
+- automatic model serving in the operator console, with a deterministic
+  heuristic fallback when an artifact has not been trained yet.
+
+Install the ML dependencies:
 
 ```bash
-PYTHONPATH=src python3 -m autonomous_dj analyze path/to/track.wav
-
-PYTHONPATH=src python3 -m autonomous_dj render \
-  path/to/source.wav path/to/destination.wav data/renders/my-transition.wav \
-  --source-start 96 --destination-start 0 \
-  --source-bpm 122 --destination-bpm 124 \
-  --target-bpm 123 --bars 16 --technique bass_swap
+pip install -e '.[ml]'
 ```
 
-## Test it
+Extract features from the included CC BY house dataset:
+
+```bash
+autonomous-dj ml-extract \
+  data/training/cc_by_house/manifest.csv \
+  data/training/track_features.csv
+```
+
+Generate the candidate sheet:
+
+```bash
+autonomous-dj ml-candidates \
+  data/training/track_features.csv \
+  data/training/transition_labels.csv \
+  --target-energy 7 --direction maintain
+```
+
+Fill the `relevance` column with `0`, `1`, or `2`. Label at least three source
+contexts and use multiple relevance levels in each; more independent contexts
+produce a more meaningful holdout score. Then train:
+
+```bash
+autonomous-dj ml-train \
+  data/training/transition_labels.csv \
+  data/models/transition_ranker
+```
+
+Inspect ranking output and its top feature contributions:
+
+```bash
+autonomous-dj ml-rank \
+  data/training/track_features.csv 01-in-search-of-sunrise \
+  --model-dir data/models/transition_ranker \
+  --target-energy 7 --direction energy_up
+```
+
+Restart `autonomous-dj serve` after training. `/api/status` reports the loaded
+model name and returns the model-ranked queue.
+
+## Feedback contract
+
+Record an accepted or rejected candidate:
+
+```json
+{"source_id":"midnight-circuit","candidate_id":"afterimage","accepted":true}
+```
+
+Or record a stronger pairwise preference:
+
+```json
+{"source_id":"midnight-circuit","winner_id":"afterimage","loser_id":"soft-focus"}
+```
+
+Send either payload to `POST /api/feedback`. Rows are appended to
+`data/training/feedback.csv` using the exact schema consumed by `ml-train`.
+
+## Tests
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
-
-## Architecture
-
-```text
-Operator console → decision/control API → TransitionPlan
-                                           ↓
-PCM WAV → analysis → tempo normalization → bass/EQ envelopes → headroom → WAV
-                              ↓
-                        render metrics + telemetry
-```
-
-Key locations:
-
-- `apps/web/` — zero-build responsive operator console
-- `src/autonomous_dj/audio.py` — ingestion, analysis, time scaling, EQ split, rendering
-- `src/autonomous_dj/models.py` — track, transition, metrics, and operator contracts
-- `src/autonomous_dj/server.py` — API, static app, demo catalog, telemetry
-- `tests/` — measurable first-sprint exit criteria
-- `data/catalog/` and `data/renders/` — generated demo inputs and outputs
-
-## Next build phases
-
-1. Replace the lightweight BPM estimator with validated beat/downbeat, key, phrase, section, vocal, and loudness analysis.
-2. Add a transition-candidate labeling workflow and train an explainable XGBoost pairwise ranker.
-3. Add offline Demucs stems and higher-quality Rubber Band tempo adjustment.
-4. Persist tracks, set runs, requests, transitions, and feedback in PostgreSQL/pgvector.
-5. Promote the heuristic queue to a contextual set planner with explicit event constraints and a target energy curve.
-
