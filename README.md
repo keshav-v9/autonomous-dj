@@ -15,6 +15,7 @@ Phase continuously improves from accepted and rejected transitions, pairwise DJ 
 | Python 3.10+ | Audio analysis, transition planning, API, and application logic |
 | NumPy | Waveform processing, feature extraction, tempo normalization, and audio mixing |
 | XGBoost | Trained pairwise ranking model for track and transition selection |
+| PyTorch | RankNet neural model for learning pairwise DJ preferences |
 | librosa | BPM, beat, key, energy, loudness, and musical-structure analysis |
 | scikit-learn | Feature preprocessing, dataset splitting, training, and model evaluation |
 | Python `wave` | Reading and writing 44.1 kHz PCM WAV files |
@@ -55,6 +56,8 @@ notebook. It includes:
   preferred (`2`) candidates;
 - an XGBoost `rank:pairwise` model with source-context group splitting, so the
   same decision context cannot leak into train and test sets;
+- a PyTorch RankNet alternative that learns a nonlinear transition score using
+  pairwise logistic loss and exports a portable TorchScript artifact;
 - NDCG@5 and pairwise-accuracy evaluation, persisted metadata, feature
   importance, and per-decision feature contributions;
 - live accepted/rejected and winner/loser feedback at `POST /api/feedback`;
@@ -96,6 +99,19 @@ autonomous-dj ml-train \
   data/models/transition_ranker
 ```
 
+Train the PyTorch model instead:
+
+```bash
+autonomous-dj ml-train-torch \
+  data/training/transition_labels.csv \
+  data/models/transition_ranker \
+  --epochs 24
+```
+
+This produces `ranknet.pt` plus `metadata.json`. When those files are present,
+the server automatically prefers the PyTorch model; otherwise it loads the
+XGBoost model or falls back to the deterministic compatibility ranker.
+
 Inspect ranking output and its top feature contributions:
 
 ```bash
@@ -128,14 +144,16 @@ The artifact contains:
 
 - `fma_catalog.csv` — 1,000 track records and Phase-compatible features;
 - `weak_transition_labels.csv` — 24,000 reproducible transition examples;
-- `model/ranker.json` — the trained XGBoost model;
-- `model/metadata.json` — evaluation metrics and training provenance;
+- `model-xgboost/ranker.json` — the trained XGBoost model;
+- `model-pytorch/ranknet.pt` — the trained PyTorch TorchScript model;
+- both model folders include evaluation metrics and training provenance;
 - `dataset_report.json` — catalog size, genre, seed, and label source.
 
-To use the downloaded model locally, copy its two model files into
-`data/models/transition_ranker/` and restart the server. The initial labels are
-explicitly marked as heuristic weak supervision. Live DJ feedback collected by
-`POST /api/feedback` should be used for later human-supervised retraining.
+To use the neural model locally, copy `model-pytorch/ranknet.pt` and its
+`metadata.json` into `data/models/transition_ranker/`, then restart the server.
+The initial labels are explicitly marked as heuristic weak supervision. Live DJ
+feedback collected by `POST /api/feedback` should be used for later
+human-supervised retraining.
 
 The workflow uses the research-oriented, Creative Commons-licensed
 [Free Music Archive dataset](https://github.com/mdeff/fma). Its metadata is CC

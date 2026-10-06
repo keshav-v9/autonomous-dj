@@ -11,14 +11,15 @@ from urllib.parse import urlparse
 
 from .audio import analyze_track, read_wav, render_transition, synthesize_demo, waveform_peaks
 from .feedback import append_feedback
-from .ml import MusicFeatures, TransitionRanker
+from .ml import MusicFeatures
 from .models import OperatorState, TransitionPlan
+from .torch_ranker import load_preferred_ranker
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB_ROOT = ROOT / "apps" / "web"
 DATA_ROOT = ROOT / "data"
 state = OperatorState()
-ranker = TransitionRanker.load(DATA_ROOT / "models" / "transition_ranker")
+ranker = load_preferred_ranker(DATA_ROOT / "models" / "transition_ranker")
 
 TRACKS = [
     {"id": "midnight-circuit", "title": "Midnight Circuit", "artist": "Demo System", "bpm": 122.0, "key": "8A", "energy": 6.8, "duration": "00:42", "color": "violet", "root_hz": 110.0},

@@ -55,11 +55,18 @@ jobs:
             --genre "$TRACK_GENRE" \
             --candidates-per-context "$CANDIDATES_PER_CONTEXT"
 
-      - name: Train leakage-safe pairwise ranker
+      - name: Train XGBoost pairwise ranker
         run: |
           autonomous-dj ml-train \
             cloud-output/weak_transition_labels.csv \
-            cloud-output/model
+            cloud-output/model-xgboost
+
+      - name: Train PyTorch RankNet model
+        run: |
+          autonomous-dj ml-train-torch \
+            cloud-output/weak_transition_labels.csv \
+            cloud-output/model-pytorch \
+            --epochs 24
 
       - name: Record cloud-training provenance
         env:
@@ -70,15 +77,16 @@ jobs:
           import json
           import os
           from pathlib import Path
-          path = Path("cloud-output/model/metadata.json")
-          metadata = json.loads(path.read_text())
-          metadata["catalog_tracks"] = int(os.environ["TRACK_COUNT"])
-          metadata["catalog_genre"] = os.environ["TRACK_GENRE"]
-          metadata["label_source"] = "Phase heuristic weak supervision"
-          metadata["audio_downloaded"] = False
-          metadata["dataset"] = "Free Music Archive"
-          metadata["dataset_url"] = "https://github.com/mdeff/fma"
-          path.write_text(json.dumps(metadata, indent=2) + "\n")
+          for directory in ("model-xgboost", "model-pytorch"):
+              path = Path("cloud-output") / directory / "metadata.json"
+              metadata = json.loads(path.read_text())
+              metadata["catalog_tracks"] = int(os.environ["TRACK_COUNT"])
+              metadata["catalog_genre"] = os.environ["TRACK_GENRE"]
+              metadata["label_source"] = "Phase heuristic weak supervision"
+              metadata["audio_downloaded"] = False
+              metadata["dataset"] = "Free Music Archive"
+              metadata["dataset_url"] = "https://github.com/mdeff/fma"
+              path.write_text(json.dumps(metadata, indent=2) + "\n")
           PY
 
       - name: Upload catalog and trained model

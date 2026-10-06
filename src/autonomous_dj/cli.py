@@ -46,6 +46,11 @@ def main() -> None:
     train.add_argument("labels", type=Path)
     train.add_argument("output_dir", type=Path)
     train.add_argument("--seed", type=int, default=42)
+    train_torch = sub.add_parser("ml-train-torch", help="Train and evaluate a PyTorch RankNet model")
+    train_torch.add_argument("labels", type=Path)
+    train_torch.add_argument("output_dir", type=Path)
+    train_torch.add_argument("--seed", type=int, default=42)
+    train_torch.add_argument("--epochs", type=int, default=24)
     rank = sub.add_parser("ml-rank", help="Rank catalog tracks for a source track")
     rank.add_argument("catalog", type=Path)
     rank.add_argument("source_id")
@@ -53,6 +58,13 @@ def main() -> None:
     rank.add_argument("--target-energy", type=float, default=7.0)
     rank.add_argument("--direction", choices=["maintain", "energy_up", "energy_down"], default="maintain")
     rank.add_argument("--limit", type=int, default=10)
+    rank_torch = sub.add_parser("ml-rank-torch", help="Rank tracks with a trained PyTorch RankNet model")
+    rank_torch.add_argument("catalog", type=Path)
+    rank_torch.add_argument("source_id")
+    rank_torch.add_argument("--model-dir", type=Path, default=Path("data/models/transition_ranker"))
+    rank_torch.add_argument("--target-energy", type=float, default=7.0)
+    rank_torch.add_argument("--direction", choices=["maintain", "energy_up", "energy_down"], default="maintain")
+    rank_torch.add_argument("--limit", type=int, default=10)
     args = parser.parse_args()
     if args.command == "serve":
         from .server import run
@@ -94,6 +106,10 @@ def main() -> None:
         from .training import train_ranker
 
         print(json.dumps(train_ranker(args.labels, args.output_dir, args.seed), indent=2))
+    elif args.command == "ml-train-torch":
+        from .torch_ranker import train_torch_ranker
+
+        print(json.dumps(train_torch_ranker(args.labels, args.output_dir, args.seed, args.epochs), indent=2))
     elif args.command == "ml-rank":
         from .ml import TransitionRanker, read_feature_catalog
 
@@ -102,6 +118,21 @@ def main() -> None:
         if args.source_id not in by_id:
             raise SystemExit(f"Unknown source_id {args.source_id!r}")
         ranked = TransitionRanker.load(args.model_dir).rank(
+            by_id[args.source_id],
+            [item for item in catalog if item.track_id != args.source_id],
+            args.target_energy,
+            args.direction,
+        )
+        print(json.dumps([item.to_dict() for item in ranked[: args.limit]], indent=2))
+    elif args.command == "ml-rank-torch":
+        from .ml import read_feature_catalog
+        from .torch_ranker import TorchTransitionRanker
+
+        catalog = read_feature_catalog(args.catalog)
+        by_id = {item.track_id: item for item in catalog}
+        if args.source_id not in by_id:
+            raise SystemExit(f"Unknown source_id {args.source_id!r}")
+        ranked = TorchTransitionRanker.load(args.model_dir).rank(
             by_id[args.source_id],
             [item for item in catalog if item.track_id != args.source_id],
             args.target_energy,
