@@ -108,6 +108,39 @@ autonomous-dj ml-rank \
 Restart `autonomous-dj serve` after training. `/api/status` reports the loaded
 model name and returns the model-ranked queue.
 
+## Train on 1,000 songs in GitHub Actions
+
+The repository includes a manual cloud workflow at
+`.github/workflows/train-fma-1000.yml`. It downloads the official Free Music
+Archive metadata and precomputed features inside a temporary GitHub runner,
+selects exactly 1,000 Electronic tracks, builds 24 candidate transitions per
+source track, and trains the pairwise ranker. It does **not** download, commit,
+or redistribute the audio files.
+
+After pushing this repository to GitHub:
+
+1. Open the repository's **Actions** tab.
+2. Select **Train ranker on 1,000 FMA tracks**.
+3. Choose **Run workflow** and keep the default values.
+4. When it finishes, download the `phase-fma-1000-*` artifact.
+
+The artifact contains:
+
+- `fma_catalog.csv` — 1,000 track records and Phase-compatible features;
+- `weak_transition_labels.csv` — 24,000 reproducible transition examples;
+- `model/ranker.json` — the trained XGBoost model;
+- `model/metadata.json` — evaluation metrics and training provenance;
+- `dataset_report.json` — catalog size, genre, seed, and label source.
+
+To use the downloaded model locally, copy its two model files into
+`data/models/transition_ranker/` and restart the server. The initial labels are
+explicitly marked as heuristic weak supervision. Live DJ feedback collected by
+`POST /api/feedback` should be used for later human-supervised retraining.
+
+The workflow uses the research-oriented, Creative Commons-licensed
+[Free Music Archive dataset](https://github.com/mdeff/fma). Its metadata is CC
+BY 4.0; individual audio licenses remain those selected by each artist.
+
 ## Feedback contract
 
 Record an accepted or rejected candidate:

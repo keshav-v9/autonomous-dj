@@ -54,6 +54,8 @@ def _normalize(values: pd.Series) -> pd.Series:
 
 
 def build_catalog(metadata_dir: Path, limit: int, genre: str, seed: int) -> tuple[list[MusicFeatures], list[dict]]:
+    if limit < 2:
+        raise ValueError("limit must be at least 2")
     tracks = pd.read_csv(metadata_dir / "tracks.csv", index_col=0, header=[0, 1], low_memory=False)
     echonest = pd.read_csv(metadata_dir / "echonest.csv", index_col=0, header=[0, 1, 2], low_memory=False)
     features = pd.read_csv(metadata_dir / "features.csv", index_col=0, header=[0, 1, 2], low_memory=False)
@@ -83,10 +85,13 @@ def build_catalog(metadata_dir: Path, limit: int, genre: str, seed: int) -> tupl
         key, camelot = _key_from_chroma(chroma)
         bpm = float(tempo.loc[track_id])
         rms_value = max(float(rms.loc[track_id]), 1e-9)
+        duration = float(pd.to_numeric(tracks.loc[track_id, ("track", "duration")], errors="coerce"))
+        if not np.isfinite(duration) or duration <= 0:
+            duration = 30.0
         feature = MusicFeatures(
             track_id=f"fma-{track_id:06d}",
             path=f"fma://{track_id}",
-            duration_seconds=float(pd.to_numeric(tracks.loc[track_id, ("track", "duration")], errors="coerce") or 30.0),
+            duration_seconds=duration,
             bpm=round(bpm, 3),
             key=key,
             camelot=camelot,

@@ -43,13 +43,17 @@ jobs:
           unzip -q /tmp/fma_metadata.zip -d /tmp/fma
 
       - name: Build 1,000-track catalog and weak preference set
+        env:
+          TRACK_COUNT: ${{ inputs.track_count }}
+          TRACK_GENRE: ${{ inputs.genre }}
+          CANDIDATES_PER_CONTEXT: ${{ inputs.candidates_per_context }}
         run: |
           python scripts/build_fma_cloud_dataset.py \
             /tmp/fma/fma_metadata \
             cloud-output \
-            --limit '${{ inputs.track_count }}' \
-            --genre '${{ inputs.genre }}' \
-            --candidates-per-context '${{ inputs.candidates_per_context }}'
+            --limit "$TRACK_COUNT" \
+            --genre "$TRACK_GENRE" \
+            --candidates-per-context "$CANDIDATES_PER_CONTEXT"
 
       - name: Train leakage-safe pairwise ranker
         run: |
@@ -58,14 +62,18 @@ jobs:
             cloud-output/model
 
       - name: Record cloud-training provenance
+        env:
+          TRACK_COUNT: ${{ inputs.track_count }}
+          TRACK_GENRE: ${{ inputs.genre }}
         run: |
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
           path = Path("cloud-output/model/metadata.json")
           metadata = json.loads(path.read_text())
-          metadata["catalog_tracks"] = int("${{ inputs.track_count }}")
-          metadata["catalog_genre"] = "${{ inputs.genre }}"
+          metadata["catalog_tracks"] = int(os.environ["TRACK_COUNT"])
+          metadata["catalog_genre"] = os.environ["TRACK_GENRE"]
           metadata["label_source"] = "Phase heuristic weak supervision"
           metadata["audio_downloaded"] = False
           metadata["dataset"] = "Free Music Archive"
