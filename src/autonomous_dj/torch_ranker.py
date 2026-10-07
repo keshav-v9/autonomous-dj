@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,10 @@ def _require_torch():
         import torch
     except Exception as exc:  # pragma: no cover - environment dependent
         raise RuntimeError("PyTorch ranking requires: pip install -e '.[ml]'") from exc
+    # XGBoost and PyTorch use different OpenMP runtimes on some platforms.
+    # A bounded torch pool prevents oversubscription and macOS deadlocks when
+    # both backends train in the same process (as they do in the test suite).
+    torch.set_num_threads(max(1, int(os.environ.get("PHASE_TORCH_THREADS", "1"))))
     return torch
 
 
@@ -76,7 +81,7 @@ def train_torch_ranker(
     epochs: int = 24,
     batch_size: int = 512,
 ) -> dict:
-    """Train RankNet using pairwise logistic loss and persist TorchScript."""
+    """Train RankNet using pairwise logistic loss and persist a safe checkpoint."""
     torch = _require_torch()
     from sklearn.metrics import ndcg_score
 
@@ -126,8 +131,7 @@ def train_torch_ranker(
 
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    scripted = torch.jit.script(model.cpu())
-    scripted.save(str(output / "ranknet.pt"))
+    torch.save(model.cpu().state_dict(), output / "ranknet.pt")
     metadata = {
         "model_type": "pytorch-ranknet-v1",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -167,7 +171,8 @@ class TorchTransitionRanker:
         metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
         if tuple(metadata.get("feature_names", ())) != FEATURE_NAMES:
             raise ValueError("PyTorch model feature schema does not match this application version")
-        model = torch.jit.load(str(directory / "ranknet.pt"), map_location="cpu")
+        model = _network(torch)
+        model.load_state_dict(torch.load(directory / "ranknet.pt", map_location="cpu", weights_only=True))
         model.eval()
         return cls(model, metadata, torch)
 

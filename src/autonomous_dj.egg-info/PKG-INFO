@@ -9,6 +9,7 @@ Provides-Extra: ml
 Requires-Dist: librosa>=0.10.2; extra == "ml"
 Requires-Dist: pandas>=2.2; extra == "ml"
 Requires-Dist: scikit-learn>=1.4; extra == "ml"
+Requires-Dist: torch>=2.3; extra == "ml"
 Requires-Dist: xgboost>=2.0; extra == "ml"
 
 # Phase — Autonomous DJ

@@ -57,7 +57,7 @@ notebook. It includes:
 - an XGBoost `rank:pairwise` model with source-context group splitting, so the
   same decision context cannot leak into train and test sets;
 - a PyTorch RankNet alternative that learns a nonlinear transition score using
-  pairwise logistic loss and exports a portable TorchScript artifact;
+  pairwise logistic loss and exports a portable neural checkpoint;
 - NDCG@5 and pairwise-accuracy evaluation, persisted metadata, feature
   importance, and per-decision feature contributions;
 - live accepted/rejected and winner/loser feedback at `POST /api/feedback`;
@@ -108,7 +108,7 @@ autonomous-dj ml-train-torch \
   --epochs 24
 ```
 
-This produces `ranknet.pt` plus `metadata.json`. When those files are present,
+This produces a weights-only `ranknet.pt` checkpoint plus `metadata.json`. When those files are present,
 the server automatically prefers the PyTorch model; otherwise it loads the
 XGBoost model or falls back to the deterministic compatibility ranker.
 
@@ -145,7 +145,7 @@ The artifact contains:
 - `fma_catalog.csv` — 1,000 track records and Phase-compatible features;
 - `weak_transition_labels.csv` — 24,000 reproducible transition examples;
 - `model-xgboost/ranker.json` — the trained XGBoost model;
-- `model-pytorch/ranknet.pt` — the trained PyTorch TorchScript model;
+- `model-pytorch/ranknet.pt` — the trained PyTorch RankNet checkpoint;
 - both model folders include evaluation metrics and training provenance;
 - `dataset_report.json` — catalog size, genre, seed, and label source.
 
